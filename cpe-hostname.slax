@@ -1,26 +1,13 @@
 /*
  * ----------------------------------------------------------------------------
- * Author         : Suresh Palguna Krishnan (adapted from Damien Garros and Jeremy Shculman)
+ * Author         : Arnoud Vermeer (adapted from Suresh Palguna Krishnan)
  * Version        : 1.0
- * Last Modified  : 2016-01-14
- * Platform       : EX3300,EX4300
- * Release        : last tested on 13.2
+ * Last Modified  : 2019-01-30
+ * Platform       : EX2300-C-12T
+ * Release        : last tested on 18.1
  * Description    :
  *
- *    This file contains a script to install licenses on the switch as part of the ZTP process
- *    The script basically downloads the licenses.txt file from the file server
- *    Here is the format for the licenses.txt file
- *
- *   PD3713497661:aeaqia qmkbcd gnzrgm 2dsmbw gyyqma uqceds
- *           q2fftx 7k4e47 ylbejp crmq6c e6gyyr wdbhzs
- *           qbhcwd i5rpo3 5usdem g2cdhu uoesve te;
- *   PD3724466188:aeaqia qmkbcd gnzrgr 2dsmbw gyyqma uqceds
- *           q2fftx 7k4e47 ylbejp crmq6c e6gyyr wdbhzs
- *           qbhcwd i5rpo3 5usdem g2cdhu uoesve te;
- *
- *    The script looks for the serial number in the file and the corresponding license data
- *    Applies this license data on the switch
- *
+ *    This file contains a script to set the hostname of the switch to CPE-$SERIAL as part of the ZTP process.
  *
  *    The ZTP process installs the appropriate software version and installs a base configuration file identified int eh DHCP parameters.
  *    The base configuration file should contain the following configuration
@@ -33,7 +20,7 @@
  *             then {
  *               execute-commands {
  *                  commands {
- *                    "op url http://192.168.0.1/ztp-lic.slax";
+ *                    "op url http://192.168.0.1/cpe-hostname.slax";
  *                  }
  *                }
  *             }
