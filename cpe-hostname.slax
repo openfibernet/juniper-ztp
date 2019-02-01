@@ -91,7 +91,9 @@ match / {
             }
         }
 
-        expr ztp:load-config( $jnx, $load-config-rpc);
+        expr ztp:load-config( $jnx, $load-config-rpc );
+
+        expr ztp:save-rescue( $jnx );
 
         expr ztp:end-script( $jnx );
     }
@@ -103,12 +105,31 @@ match / {
 /* ------------------------------------------------- */
 <func:function name="ztp:serial-number">
 {
-   param $jnx;
+    param $jnx;
 
-   var $cmd = <get-chassis-inventory>;
-   var $sn = jcs:execute( $jnx, $cmd )//chassis/serial-number;
+    var $cmd = <get-chassis-inventory>;
+    var $sn = jcs:execute( $jnx, $cmd )//chassis/serial-number;
 
-   <func:result select="$sn">;
+    <func:result select="$sn">;
+}
+
+/* --------------------------------------------------------------------- */
+/* this function is used save the configuration to the rescue partition  */
+/* --------------------------------------------------------------------- */
+<func:function name="ztp:save-rescue">
+{
+    param $jnx;
+
+    var $cmd = <request-save-rescue-configuration>;
+    var $save-rsp = jcs:execute( $jnx, $cmd );
+
+    if( $save-rsp//self::xnm:error ) {
+        call syslog-messages( $header = "Unable to save rescue configuration", $messages = $save-rsp//self::xnm:error/message );
+        <func:result select="$save-rsp//self::xnm:error">;
+    }
+    else {
+        <func:result select="/null">;
+    }
 }
 
 
@@ -117,24 +138,24 @@ match / {
 /* ----------------------------------------------------------------------------- */
 <func:function name="ztp:load-config">
 {
-   param $jnx;
-   param $load-cmd;
+    param $jnx;
+    param $load-cmd;
 
-   var $load-rsp = jcs:execute( $jnx, $load-cmd );
-   if( $load-rsp//self::xnm:error ) {
-      call syslog-messages( $header = "Unable to load configuration", $messages = $load-rsp//self::xnm:error/message );
-      <func:result select="$load-rsp//self::xnm:error">;
-   }
-   else {
-      var $commit-rsp = jcs:execute( $jnx, "commit-configuration" );
-      if( $commit-rsp//self::xnm:error ) {
-         call syslog-messages( $header = "unable to commit configuration", $messages = $commit-rsp//self::xnm:error/message );
-         <func:result select="exsl:node-set($commit-rsp//self::xnm:error)">;
-      }
-      else {
-         <func:result select="/null">;
-      }
-   }
+    var $load-rsp = jcs:execute( $jnx, $load-cmd );
+    if( $load-rsp//self::xnm:error ) {
+        call syslog-messages( $header = "Unable to load configuration", $messages = $load-rsp//self::xnm:error/message );
+        <func:result select="$load-rsp//self::xnm:error">;
+    }
+    else {
+        var $commit-rsp = jcs:execute( $jnx, "commit-configuration" );
+        if( $commit-rsp//self::xnm:error ) {
+            call syslog-messages( $header = "unable to commit configuration", $messages = $commit-rsp//self::xnm:error/message );
+            <func:result select="exsl:node-set($commit-rsp//self::xnm:error)">;
+        }
+        else {
+            <func:result select="/null">;
+        }
+    }
 }
 
 
@@ -143,11 +164,11 @@ match / {
 /* ------------------------------------------------- */
 <func:function name="ztp:end-script">
 {
-   param $jnx;
+    param $jnx;
 
-   expr jcs:close( $jnx );
-   <xsl:message terminate="yes">;
+    expr jcs:close( $jnx );
+    <xsl:message terminate="yes">;
 
-   <func:result select="true()">;
+    <func:result select="true()">;
 }
 
