@@ -65,7 +65,7 @@ ns exsl extension = "http://exslt.org/common";
 ns func extension = "http://exslt.org/functions";
 ns ztp = "http://xml.juniper.net/junos/ztp";
 
-import "/var/run/scripts/import/junos.xsl";
+import "/usr/libdata/cscript/import/junos.xsl";
 
 
 
@@ -123,13 +123,7 @@ match / {
     var $cmd = <request-save-rescue-configuration>;
     var $save-rsp = jcs:execute( $jnx, $cmd );
 
-    if( $save-rsp//self::xnm:error ) {
-        call syslog-messages( $header = "Unable to save rescue configuration", $messages = $save-rsp//self::xnm:error/message );
-        <func:result select="$save-rsp//self::xnm:error">;
-    }
-    else {
-        <func:result select="/null">;
-    }
+    <func:result select="/null">;
 }
 
 
