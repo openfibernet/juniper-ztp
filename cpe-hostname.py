@@ -13,11 +13,14 @@ def main():
     hostname_serial = "CPE-" + serial_number
 
     set_hostname = "set system host-name " + str(hostname_serial)
+    delete_eo = "delete event-options"
 
     cu = Config(jdev)
     cu.lock()
     cu.load(set_hostname, format="set", merge=True)
+    cu.load(delete_eo, format="set", merge=True)
     cu.commit(comment="Set CPE hostname")
+    cu.rescue(action="save")
     cu.unlock()
 
     jdev.close()
