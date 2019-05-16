@@ -12,13 +12,16 @@ def main():
     serial_number = rpc_call.findtext('chassis/serial-number')
     hostname_serial = "CPE-" + serial_number
 
-    set_hostname = "set system host-name " + str(hostname_serial)
-    delete_eo = "delete event-options"
+    commands = []
+    commands.append("set system host-name " + str(hostname_serial))
+    commands.append("delete event-options generate-event ztp-lic")
+    commands.append("delete event-options policy ztp-lic")
+    commands.append("delete event-options event-script file cpe-hostname.py")
 
     cu = Config(jdev)
     cu.lock()
-    cu.load(set_hostname, format="set", merge=True)
-    cu.load(delete_eo, format="set", merge=True)
+    for cmd in commands:
+        cu.load(cmd, format="set", merge=True)
     cu.commit(comment="Set CPE hostname")
     cu.rescue(action="save")
     cu.unlock()
