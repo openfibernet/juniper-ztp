@@ -24,6 +24,9 @@ var $HOOKS_PACKAGE = 'images/package-hooks-ex.tgz';
 var $JUNOS_IMAGE = 'junos-arm-32-19.4R1.10.tgz';
 var $JUNOS_CONF = 'config/default-ex2300.conf';
 
+var $CRAPPY_VERSION = '18.1R3.3';
+var $WANTED_VERSION = '19.4R1.10';
+
 var $APPNAME = 'tingztp[' _ $junos-context/pid _ ']';
 var $SYSLOG = 'user.info';
 var $TMPDIR = '/var/tmp';
@@ -40,9 +43,9 @@ match / {
         /* Get version number */
         var $version = ztp:version-number( $jnx );
 
-        if( $version == "18.1R3.3" ) {
+        if( $version == $CRAPPY_VERSION ) {
             expr ztp:rescue-upgrade-procedure( $jnx );
-        } else if ( version != "19.4R1.10" ) {
+        } else if ( $version != $WANTED_VERSION ) {
             expr ztp:normal-upgrade-procedure( $jnx );
         } else {
             expr ztp:load-configuration( $jnx );
