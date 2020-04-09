@@ -1,0 +1,268 @@
+#!/usr/libexec/ui/cscript
+
+version 1.0;
+
+/* Junos standard namespaces */
+ns junos = "http://xml.juniper.net/junos/*/junos";
+ns xnm = "http://xml.juniper.net/xnm/1.1/xnm";
+ns jcs = "http://xml.juniper.net/junos/commit-scripts/1.0";
+
+/* EXSLT extensions and app specific namespaces */
+ns exsl extension = "http://exslt.org/common";
+ns func extension = "http://exslt.org/functions";
+ns ztp = "http://xml.juniper.net/junos/ztp";
+
+import "/usr/libdata/cscript/import/junos.xsl";
+
+/* ------------------------------------------------------------------ */
+/* Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+var $SERVER = '10.195.80.1';
+var $OS_PACKAGE = 'images/os-package.tgz';
+var $HOOKS_PACKAGE = 'images/package-hooks-ex.tgz';
+var $JUNOS_IMAGE = 'junos-arm-32-19.4R1.10.tgz';
+var $JUNOS_CONF = 'config/default-ex2300.conf';
+
+var $APPNAME = 'tingztp[' _ $junos-context/pid _ ']';
+var $SYSLOG = 'user.info';
+var $TMPDIR = '/var/tmp';
+
+/* ------------------------------------------------------------------ */
+/*                                MAIN                                */ 
+/* ------------------------------------------------------------------ */
+
+match / {
+    <op-script-results> {
+        /* Open a connection to the device */
+        var $jnx = jcs:open();
+
+        /* Get version number */
+        var $version = ztp:version-number( $jnx );
+
+        if( $version == "18.1R3.3" ) {
+            expr ztp:rescue-upgrade-procedure( $jnx );
+        } else if ( version != "19.4R1.10" ) {
+            expr ztp:normal-upgrade-procedure( $jnx );
+        } else {
+            expr ztp:load-configuration( $jnx );
+
+            expr ztp:delete-packages( $jnx );
+
+            expr ztp:poweroff( $jnx );
+
+            expr ztp:end-script( $jnx );
+        }
+
+        expr ztp:reboot( $jnx );
+
+        expr ztp:save-rescue( $jnx );
+
+        expr ztp:end-script( $jnx );
+    }
+}
+
+/* ------------------------------------------------- */
+/* this function is used get the version number  */
+/* ------------------------------------------------- */
+<func:function name="ztp:version-number">
+{
+    param $jnx;
+
+    var $cmd = <get-software-information>;
+    var $sn = jcs:execute( $jnx, $cmd )//junos-version;
+
+    expr jcs:output("The version we are running is " _ $sn);
+
+    <func:result select="$sn">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used as the rescue-upgrade-procedure  */
+/* ------------------------------------------------------ */
+<func:function name="ztp:rescue-upgrade-procedure">
+{
+    param $jnx;
+
+    var $local_image = $TMPDIR _ '/' _ $JUNOS_IMAGE;
+
+    /* request system storage cleanup */
+    expr jcs:output('Cleaning up storage');
+    var $do_cleanup = <request-system-storage-cleanup> {
+        <no-confirm>;
+    }
+    var $cleanup-rsp = jcs:execute( $jnx, $do_cleanup );
+
+    /* request system software add http://10.195.80.1/images/os-package.tgz */
+    expr jcs:output('Adding OS package');
+    var $do_os_package = <request-package-add> {
+        <package-name> 'http://' _ $SERVER _ '/' _ $OS_PACKAGE;
+    }
+    var $osp-rsp = jcs:execute( $jnx, $do_os_package );
+
+    /* request system software add http://10.195.80.1/images/package-hooks-ex.tgz */
+    expr jcs:output('Adding EX hooks package');
+    var $do_hooks_package = <request-package-add> {
+        <package-name> 'http://' _ $SERVER _ '/' _ $HOOKS_PACKAGE;
+    }
+    var $hooks-rsp = jcs:execute( $jnx, $do_hooks_package );
+
+    if( ztp:file-exists( $jnx, $local_image )) {
+        expr jcs:output("junos image exists, no download needed");
+    } else {
+        /* file copy .... */
+        expr jcs:output("downloading junos image");
+        var $do_copy = <file-copy> {
+          <source> 'http://' _ $SERVER _ '/images/' _ $JUNOS_IMAGE;
+          <destination> $TMPDIR;
+          <staging-directory> $TMPDIR;
+        };
+        var $did_copy = jcs:execute( $jnx, $do_copy );
+        expr jcs:output($did_copy);
+
+        /* trap error here */
+        if( not(ztp:file-exists( $jnx, $local_image )) ) {
+            expr jcs:output("ERROR: unable to download junos image" );
+            expr ztp:end-script();
+        }
+    }
+
+    /* request system software add http://10.195.80.1/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy reboot */
+    expr jcs:output('Installing software upgrade');
+    var $do_upgrade = <request-package-add> {
+        <package-name> $local_image;
+        <force>;
+        <no-copy>;
+        <unlink>;
+        <no-validate>;
+    }
+    var $upgrade-rsp = jcs:execute( $jnx, $do_upgrade );
+    expr jcs:output($upgrade-rsp);
+
+    expr jcs:output("Completed installing junos image");
+
+    <func:result select="true()">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used as the normal-upgrade-procedure  */
+/* ------------------------------------------------------ */
+<func:function name="ztp:normal-upgrade-procedure">
+{
+    param $jnx;
+
+    /* request system software add http://10.195.80.1/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy */
+    expr jcs:output('Installing software upgrade');
+    var $do_upgrade = <request-package-add> {
+        <package-name> 'http://' _ $SERVER _ '/images/' _ $JUNOS_IMAGE;
+        <force>;
+        <no-copy>;
+        <unlink>;
+        <no-validate>;
+    }
+    var $upgrade-rsp = jcs:execute( $jnx, $do_upgrade );
+
+    <func:result select="$upgrade-rsp">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used to delete packages  */
+/* ------------------------------------------------------ */
+<func:function name="ztp:delete-packages">
+{
+    param $jnx;
+
+    expr jcs:output('Deleting packages');
+    var $do_delete_os = <request-package-delete> { <package-name> 'os-package'; }
+    var $did_delete_os = jcs:execute( $jnx, $do_delete_os );
+
+    var $do_delete = <request-package-delete> { <package-name> 'package-hooks-platform'; }
+    var $did_delete = jcs:execute( $jnx, $do_delete );
+
+    <func:result select="$did_delete">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used to check if a file exists        */
+/* ------------------------------------------------------ */
+
+<func:function name="ztp:file-exists">
+{
+  param $jnx;
+  param $filename;
+
+  var $ls_file = <file-list> { <path> $filename; };
+  var $ls_got = jcs:execute( $jnx, $ls_file );
+  var $retval = boolean( $ls_got//file-information );
+
+  <func:result select="$retval">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used to load the configuration        */
+/* ------------------------------------------------------ */
+<func:function name="ztp:load-configuration">
+{
+    param $jnx;
+
+    var $do_load = <load-configuration action="override" url="http://" _ $SERVER _ "/" _ $JUNOS_CONF format="text">;
+    var $did_load = jcs:execute( $jnx, $do_load );
+
+    var $complete_commit = jcs:execute( $jnx, 'commit-configuration' );
+
+    <func:result select="$complete_commit">;
+}
+
+/* --------------------------------------------------------------------- */
+/* this function is used save the configuration to the rescue partition  */
+/* --------------------------------------------------------------------- */
+<func:function name="ztp:save-rescue">
+{
+    param $jnx;
+
+    var $do_rescue = <request-save-rescue-configuration>;
+    var $did_rescue = jcs:execute( $jnx, $do_rescue );
+
+    <func:result select="true()">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used to reboot the device  */
+/* ------------------------------------------------------ */
+<func:function name="ztp:reboot">
+{
+    param $jnx;
+
+    expr jcs:output("Rebooting in 60 seconds");
+    var $do_reboot = <request-reboot> { <in> 1; }
+    var $reboot-rsp = jcs:execute( $jnx, $do_reboot );
+
+    <func:result select="$reboot-rsp">;
+}
+
+/* ------------------------------------------------------ */
+/* this function is used to poweroff the device  */
+/* ------------------------------------------------------ */
+<func:function name="ztp:poweroff">
+{
+    param $jnx;
+
+    expr jcs:output("Shutting down in 60 seconds");
+    var $do_poweroff = <request-power-off> { <in> 1; }
+    var $did_poweroff = jcs:execute( $jnx, $do_poweroff );
+
+    <func:result select="$did_poweroff">;
+}
+
+/* ------------------------------------------------- */
+/* this function is used to terminate script properly  */
+/* ------------------------------------------------- */
+<func:function name="ztp:end-script">
+{
+    param $jnx;
+
+    expr jcs:close( $jnx );
+    <xsl:message terminate="yes">;
+
+    <func:result select="true()">;
+}
