@@ -1,0 +1,19 @@
+root@ex2300> show configuration 
+event-options {
+    generate-event {
+        lldp-mgmt time-interval 3600;
+    }
+    policy lldp-mgmt {
+        events lldp-mgmt;
+        then {
+            event-script lldp-mgmt.py;
+        }
+    }
+    event-script {
+        optional;
+        file lldp-mgmt.py {
+            refresh-from http://ztp.example.com/lldp-mgmt.py;
+            python-script-user remote;
+        }
+    }
+}
