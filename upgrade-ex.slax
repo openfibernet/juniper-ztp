@@ -18,7 +18,7 @@ import "/usr/libdata/cscript/import/junos.xsl";
 /* Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-var $SERVER = '10.195.80.1';
+var $SERVER = '172.28.202.27';
 var $OS_PACKAGE = 'images/os-package.tgz';
 var $HOOKS_PACKAGE = 'images/package-hooks-ex.tgz';
 var $JUNOS_IMAGE = 'junos-arm-32-19.4R1.10.tgz';
@@ -96,14 +96,14 @@ match / {
     }
     var $cleanup-rsp = jcs:execute( $jnx, $do_cleanup );
 
-    /* request system software add http://10.195.80.1/images/os-package.tgz */
+    /* request system software add http://172.28.202.27/images/os-package.tgz */
     expr jcs:output('Adding OS package');
     var $do_os_package = <request-package-add> {
         <package-name> 'http://' _ $SERVER _ '/' _ $OS_PACKAGE;
     }
     var $osp-rsp = jcs:execute( $jnx, $do_os_package );
 
-    /* request system software add http://10.195.80.1/images/package-hooks-ex.tgz */
+    /* request system software add http://172.28.202.27/images/package-hooks-ex.tgz */
     expr jcs:output('Adding EX hooks package');
     var $do_hooks_package = <request-package-add> {
         <package-name> 'http://' _ $SERVER _ '/' _ $HOOKS_PACKAGE;
@@ -130,7 +130,7 @@ match / {
         }
     }
 
-    /* request system software add http://10.195.80.1/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy reboot */
+    /* request system software add http://172.28.202.27/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy reboot */
     expr jcs:output('Installing software upgrade');
     var $do_upgrade = <request-package-add> {
         <package-name> $local_image;
@@ -154,7 +154,7 @@ match / {
 {
     param $jnx;
 
-    /* request system software add http://10.195.80.1/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy */
+    /* request system software add http://172.28.202.27/images/junos-arm-32-19.4R1.10.tgz force unlink no-copy */
     expr jcs:output('Installing software upgrade');
     var $do_upgrade = <request-package-add> {
         <package-name> 'http://' _ $SERVER _ '/images/' _ $JUNOS_IMAGE;
@@ -168,6 +168,22 @@ match / {
     <func:result select="$upgrade-rsp">;
 }
 
+/* ------------------------------------------------- */
+/* this function is to find if a package is installed  */
+/* ------------------------------------------------- */
+<func:function name="ztp:package-installed">
+{
+    param $jnx;
+    param $package;
+
+    var $cmd = <get-software-information>;
+    var $search = jcs:execute( $jnx, $cmd )//name[contains(text(), $package)];
+
+    expr jcs:output("Looking for " _ $package _ " and found " _ $search);
+
+    <func:result select="$search">;
+}
+
 /* ------------------------------------------------------ */
 /* this function is used to delete packages  */
 /* ------------------------------------------------------ */
@@ -176,13 +192,18 @@ match / {
     param $jnx;
 
     expr jcs:output('Deleting packages');
-    var $do_delete_os = <request-package-delete> { <package-name> 'os-package'; }
-    var $did_delete_os = jcs:execute( $jnx, $do_delete_os );
 
-    var $do_delete = <request-package-delete> { <package-name> 'package-hooks-platform'; }
-    var $did_delete = jcs:execute( $jnx, $do_delete );
+    if( ztp:package-installed( $jnx, 'os-package' )) {
+        var $do_delete_os = <request-package-delete> { <package-name> 'os-package'; }
+        var $did_delete_os = jcs:execute( $jnx, $do_delete_os );
+    }
 
-    <func:result select="$did_delete">;
+    if( ztp:package-installed( $jnx, 'package-hooks-platform' )) {
+        var $do_delete = <request-package-delete> { <package-name> 'package-hooks-platform'; }
+        var $did_delete = jcs:execute( $jnx, $do_delete );
+    }
+
+    <func:result select="true()">;
 }
 
 /* ------------------------------------------------------ */
